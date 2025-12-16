@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
+import { ProjectManager } from './projectManager';
+import { TIC80ProjectConfig } from './projectTypes';
 
 /**
  * TIC80Dashboard - WebView panel for TIC-80 extension
@@ -15,11 +16,15 @@ export class TIC80Dashboard {
     // Disposables for cleanup
     private _disposables: vscode.Disposable[] = [];
     
+    // Project manager instance
+    private _projectManager: ProjectManager;
+    
     /**
      * Private constructor
      */
     private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
         this._panel = panel;
+        this._projectManager = new ProjectManager();
         
         // Set WebView options
         this._panel.webview.options = {
@@ -42,8 +47,11 @@ export class TIC80Dashboard {
             this._disposables
         );
         
-        // Show initial message
-        vscode.window.showInformationMessage('TIC-80 Dashboard opened');
+        // Load project if in TIC-80 workspace
+        this._loadCurrentProject();
+        
+        // Listen for workspace changes
+        this._setupWorkspaceListeners();
     }
     
     /**
@@ -68,6 +76,54 @@ export class TIC80Dashboard {
         );
         
         TIC80Dashboard.currentPanel = new TIC80Dashboard(panel, extensionUri);
+    }
+    
+    /**
+     * Set up workspace change listeners
+     */
+    private _setupWorkspaceListeners() {
+        // Reload project when workspace changes
+        vscode.workspace.onDidChangeWorkspaceFolders(async () => {
+            await this._loadCurrentProject();
+            this._updateWebViewProjectInfo();
+        });
+        
+        // Watch for project.json changes
+        const configWatcher = vscode.workspace.createFileSystemWatcher('**/project.json');
+        configWatcher.onDidChange(async () => {
+            await this._loadCurrentProject();
+            this._updateWebViewProjectInfo();
+        });
+        
+        this._disposables.push(configWatcher);
+    }
+    
+    /**
+     * Load current project if in TIC-80 workspace
+     */
+    private async _loadCurrentProject() {
+        const isProject = await this._projectManager.isTIC80Project();
+        
+        if (isProject) {
+            const project = await this._projectManager.loadProject();
+            if (project) {
+                console.log('Project loaded:', project.name);
+            }
+        }
+    }
+    
+    /**
+     * Send project info to WebView
+     */
+    private _updateWebViewProjectInfo() {
+        const project = this._projectManager.getCurrentProject();
+        
+        this._panel.webview.postMessage({
+            command: 'projectInfo',
+            hasProject: !!project,
+            project: project,
+            projectRoot: this._projectManager.getProjectRoot()
+        });
     }
     
     /**
@@ -100,6 +156,32 @@ export class TIC80Dashboard {
                     padding-bottom: 10px;
                 }
                 
+                .project-status {
+                    background: var(--vscode-editorWidget-background);
+                    border: 1px solid var(--vscode-panel-border);
+                    border-radius: 3px;
+                    padding: 15px;
+                    margin: 20px 0;
+                }
+                
+                .project-status.no-project {
+                    border-left: 4px solid var(--vscode-errorForeground);
+                }
+                
+                .project-status.has-project {
+                    border-left: 4px solid var(--vscode-testing-iconPassed);
+                }
+                
+                .project-info {
+                    margin-top: 15px;
+                    padding: 10px;
+                    background: var(--vscode-textBlockQuote-background);
+                    border-radius: 3px;
+                    font-family: monospace;
+                    font-size: 12px;
+                    overflow-x: auto;
+                }
+                
                 .buttons {
                     display: flex;
                     flex-direction: column;
@@ -122,6 +204,14 @@ export class TIC80Dashboard {
                     background: var(--vscode-button-hoverBackground);
                 }
                 
+                button.primary {
+                    background: var(--vscode-button-secondaryBackground);
+                }
+                
+                button.primary:hover {
+                    background: var(--vscode-button-secondaryHoverBackground);
+                }
+                
                 .log {
                     background: var(--vscode-textBlockQuote-background);
                     border-left: 3px solid var(--vscode-textLink-foreground);
@@ -129,75 +219,219 @@ export class TIC80Dashboard {
                     margin-top: 20px;
                     font-family: monospace;
                     font-size: 12px;
+                    max-height: 200px;
+                    overflow-y: auto;
+                }
+                
+                .log-entry {
+                    margin: 5px 0;
+                    padding: 2px 5px;
+                    border-radius: 2px;
+                }
+                
+                .log-entry.info {
+                    background: var(--vscode-textBlockQuote-background);
+                }
+                
+                .log-entry.success {
+                    background: var(--vscode-testing-iconPassed);
+                    color: var(--vscode-foreground);
+                }
+                
+                .log-entry.error {
+                    background: var(--vscode-testing-iconFailed);
+                    color: var(--vscode-foreground);
+                }
+                
+                .hidden {
+                    display: none;
                 }
             </style>
         </head>
         <body>
             <div class="container">
-                <h1>TIC-80 Studio dashboard</h1>
+                <h1>🎮 TIC-80 Dashboard</h1>
                 
+                <!-- Project Status Section -->
+                <div id="project-status" class="project-status no-project">
+                    <h3>Project Status</h3>
+                    <p id="no-project-message">
+                        No TIC-80 project loaded. 
+                        Open a project folder or create a new one.
+                    </p>
+                    <div id="has-project-message" class="hidden">
+                        <p>
+                            <strong>Project:</strong> <span id="project-name">Loading...</span>
+                            <br>
+                            <strong>Location:</strong> <span id="project-path">Loading...</span>
+                        </p>
+                        <div id="project-details" class="project-info">
+                            Loading project details...
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Action Buttons -->
                 <div class="buttons">
-                    <button onclick="sendMessage('createProject')">Create new Project</button>
-                    <button onclick="sendMessage('buildProject')">Build Project</button>
-                    <button onclick="sendMessage('runProject')">Run Project</button>
+                    <button class="primary" onclick="sendMessage('createProject')">
+                        Create New Project
+                    </button>
+                    <button onclick="sendMessage('openProject')">
+                        Open Project Folder
+                    </button>
+                    <button id="build-btn" onclick="sendMessage('buildProject')" disabled>
+                        Build Project
+                    </button>
+                    <button id="run-btn" onclick="sendMessage('runProject')" disabled>
+                        ▶Run in TIC-80
+                    </button>
                 </div>
                 
-                <h3>Messages from Extension:</h3>
+                <!-- Messages Log -->
+                <h3>Activity Log:</h3>
                 <div id="messages" class="log">
-                    No messages yet...
+                    <div class="log-entry info">Dashboard loaded. Waiting for actions...</div>
                 </div>
-                
-                <h3>Instructions:</h3>
-                <ol>
-                    <li>Create a new TIC-80 project</li>
-                    <li>Edit your game code</li>
-                    <li>Build the cartridge</li>
-                    <li>Run in TIC-80</li>
-                </ol>
             </div>
             
             <script>
                 const vscode = acquireVsCodeApi();
                 
-                // Message queue
-                let messageQueue = [];
+                // State management
+                let state = vscode.getState() || {
+                    hasProject: false,
+                    projectName: null,
+                    lastAction: null,
+                    logEntries: []
+                };
+                
+                // Message queue for log
+                let logEntries = state.logEntries || [];
                 
                 // Send message to extension
-                function sendMessage(command) {
+                function sendMessage(command, data = {}) {
                     vscode.postMessage({
                         command: command,
-                        timestamp: new Date().toISOString()
+                        ...data
                     });
-                    addMessage('→ Sent: ' + command);
+                    addLogEntry('→ Sent: ' + command, 'info');
                 }
                 
-                // Add message to log
-                function addMessage(text) {
-                    messageQueue.push(text);
-                    if (messageQueue.length > 10) {
-                        messageQueue.shift();
+                // Add entry to log
+                function addLogEntry(text, type = 'info') {
+                    const entry = {
+                        text: text,
+                        type: type,
+                        timestamp: new Date().toLocaleTimeString()
+                    };
+                    
+                    logEntries.push(entry);
+                    if (logEntries.length > 20) {
+                        logEntries.shift();
                     }
                     
-                    const messagesDiv = document.getElementById('messages');
-                    messagesDiv.innerHTML = messageQueue.map(msg => 
-                        '<div>' + msg + '</div>'
+                    updateLogDisplay();
+                    saveState();
+                }
+                
+                // Update log display
+                function updateLogDisplay() {
+                    const logDiv = document.getElementById('messages');
+                    logDiv.innerHTML = logEntries.map(entry => 
+                        \`<div class="log-entry \${entry.type}">
+                            [\${entry.timestamp}] \${entry.text}
+                        </div>\`
                     ).join('');
-                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                    logDiv.scrollTop = logDiv.scrollHeight;
+                }
+                
+                // Update project status display
+                function updateProjectStatus(hasProject, project, projectRoot) {
+                    const statusDiv = document.getElementById('project-status');
+                    const noProjectMsg = document.getElementById('no-project-message');
+                    const hasProjectMsg = document.getElementById('has-project-message');
+                    
+                    if (hasProject && project) {
+                        // Update status UI
+                        statusDiv.className = 'project-status has-project';
+                        noProjectMsg.style.display = 'none';
+                        hasProjectMsg.classList.remove('hidden');
+                        
+                        // Update project info
+                        document.getElementById('project-name').textContent = project.name;
+                        document.getElementById('project-path').textContent = projectRoot || 'Unknown';
+                        
+                        // Format and display project details
+                        const detailsDiv = document.getElementById('project-details');
+                        detailsDiv.innerHTML = \`<pre>\${JSON.stringify(project, null, 2)}</pre>\`;
+                        
+                        // Enable action buttons
+                        document.getElementById('build-btn').disabled = false;
+                        document.getElementById('run-btn').disabled = false;
+                        
+                        state.hasProject = true;
+                        state.projectName = project.name;
+                        
+                        addLogEntry(\`Project "\${project.name}" loaded\`, 'success');
+                        
+                    } else {
+                        // No project loaded
+                        statusDiv.className = 'project-status no-project';
+                        noProjectMsg.style.display = 'block';
+                        hasProjectMsg.classList.add('hidden');
+                        
+                        // Disable action buttons
+                        document.getElementById('build-btn').disabled = true;
+                        document.getElementById('run-btn').disabled = true;
+                        
+                        state.hasProject = false;
+                        state.projectName = null;
+                    }
+                    
+                    saveState();
+                }
+                
+                // Save state to persist across reloads
+                function saveState() {
+                    state.logEntries = logEntries;
+                    vscode.setState(state);
                 }
                 
                 // Handle messages from extension
                 window.addEventListener('message', event => {
                     const message = event.data;
-                    addMessage('← Received: ' + JSON.stringify(message));
+                    
+                    switch (message.command) {
+                        case 'projectInfo':
+                            updateProjectStatus(
+                                message.hasProject,
+                                message.project,
+                                message.projectRoot
+                            );
+                            break;
+                            
+                        case 'actionResponse':
+                            addLogEntry(message.text, 'success');
+                            break;
+                            
+                        case 'error':
+                            addLogEntry(message.text, 'error');
+                            break;
+                            
+                        case 'testResponse':
+                            addLogEntry(message.text, 'info');
+                            break;
+                    }
                 });
                 
-                // Initial message
-                addMessage('WebView loaded successfully');
-                
-                // Send ready message
+                // Request initial project info
                 setTimeout(() => {
-                    vscode.postMessage({ command: 'webviewReady' });
+                    vscode.postMessage({ command: 'getProjectInfo' });
                 }, 100);
+                
+                // Initial log entry
+                addLogEntry('Dashboard initialized', 'info');
+                updateLogDisplay();
             </script>
         </body>
         </html>`;
@@ -206,41 +440,111 @@ export class TIC80Dashboard {
     /**
      * Handle messages from WebView
      */
-    private _handleWebViewMessage(message: any) {
+    private async _handleWebViewMessage(message: any) {
         console.log('Message from WebView:', message);
         
         switch (message.command) {
-            case 'webviewReady':
-                this._panel.webview.postMessage({
-                    command: 'welcome',
-                    text: 'Dashboard WebView is ready!'
-                });
+            case 'getProjectInfo':
+                // Send current project info to WebView
+                this._updateWebViewProjectInfo();
                 break;
                 
             case 'createProject':
-                vscode.window.showInformationMessage('Create Project feature coming soon!');
-                this._panel.webview.postMessage({
-                    command: 'actionResponse',
-                    text: 'Create project action received'
-                });
+                await this._handleCreateProject();
+                break;
+                
+            case 'openProject':
+                await this._handleOpenProject();
                 break;
                 
             case 'buildProject':
-                vscode.window.showInformationMessage('Build Project feature coming soon!');
-                this._panel.webview.postMessage({
-                    command: 'actionResponse',
-                    text: 'Build project action received'
-                });
+                await this._handleBuildProject();
                 break;
                 
             case 'runProject':
-                vscode.window.showInformationMessage('Run Project feature coming soon!');
+                await this._handleRunProject();
+                break;
+                
+            case 'testMessage':
+                vscode.window.showInformationMessage('Test message from WebView!');
                 this._panel.webview.postMessage({
-                    command: 'actionResponse',
-                    text: 'Run project action received'
+                    command: 'testResponse',
+                    text: 'Extension received your test message'
                 });
                 break;
         }
+    }
+    
+    /**
+     * Handle create project request
+     */
+    private async _handleCreateProject() {
+        try {
+            const projectPath = await this._projectManager.createNewProject();
+            
+            if (projectPath) {
+                this._panel.webview.postMessage({
+                    command: 'actionResponse',
+                    text: 'Project created successfully!'
+                });
+                
+                // Reload project info after creation
+                setTimeout(async () => {
+                    await this._loadCurrentProject();
+                    this._updateWebViewProjectInfo();
+                }, 1000);
+            }
+        } catch (error) {
+            this._panel.webview.postMessage({
+                command: 'error',
+                text: `Failed to create project: ${error}`
+            });
+        }
+    }
+    
+    /**
+     * Handle open project request
+     */
+    private async _handleOpenProject() {
+        const uris = await vscode.window.showOpenDialog({
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+            openLabel: 'Open TIC-80 Project',
+            title: 'Select TIC-80 Project Folder'
+        });
+        
+        if (uris && uris.length > 0) {
+            // Open the folder in VS Code
+            vscode.commands.executeCommand('vscode.openFolder', uris[0]);
+            
+            this._panel.webview.postMessage({
+                command: 'actionResponse',
+                text: 'Opening project folder...'
+            });
+        }
+    }
+    
+    /**
+     * Handle build project request
+     */
+    private async _handleBuildProject() {
+        this._panel.webview.postMessage({
+            command: 'actionResponse',
+            text: 'Build project feature coming soon!'
+        });
+        vscode.window.showInformationMessage('Build functionality will be implemented next');
+    }
+    
+    /**
+     * Handle run project request
+     */
+    private async _handleRunProject() {
+        this._panel.webview.postMessage({
+            command: 'actionResponse',
+            text: 'Run project feature coming soon!'
+        });
+        vscode.window.showInformationMessage('Run functionality will be implemented next');
     }
     
     /**

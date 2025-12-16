@@ -10,6 +10,7 @@
         "Other"
     ],
     "activationEvents": [
+        "workspaceContains:tic80_project.json"
     ],
     "main": "./out/extension.js",
     "contributes": {
@@ -22,7 +23,23 @@
                 "command": "tic80.showDashboard",
                 "title": "TIC-80: Show Dashboard"
             }
-        ]
+        ],
+        "configuration": {
+            "title": "TIC-80",
+            "properties": {
+                "tic80.author": {
+                    "type": "string",
+                    "default": "Unknown",
+                    "description": "Default author name for new projects"
+                },
+                "tic80.defaultScriptLanguage": {
+                    "type": "string",
+                    "enum": ["lua", "javascript", "fennel", "wren", "squirrel"],
+                    "default": "lua",
+                    "description": "Default script language for new projects"
+                }
+            }
+        }
     },
     "scripts": {
         "vscode:prepublish": "npm run compile",
