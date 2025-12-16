@@ -153,14 +153,11 @@ export class CartridgeBuilder {
         // Read file content
         const content = await fs.promises.readFile(fullPath, 'utf8');
         
-        // Clean the content (remove trailing whitespace)
-        const cleanedContent = content.replace(/\s+$/gm, '');
-        
         // Generate file header
         const fileHeader = this.generateFileHeader(filePath);
         
         // Combine header and content
-        return fileHeader + '\n' + cleanedContent;
+        return fileHeader + '\n' + content;
     }
     
     /**
@@ -189,17 +186,6 @@ export class CartridgeBuilder {
             '-- added here in future versions',
             '-- ============================================'
         ].join('\n');
-    }
-    
-    /**
-     * Sanitize filename for cartridge
-     */
-    private sanitizeFilename(filename: string): string {
-        return filename
-            .toLowerCase()
-            .replace(/[^a-z0-9]/gi, '_') // Replace non-alphanumeric with underscores
-            .replace(/_+/g, '_')         // Replace multiple underscores with single
-            .replace(/^_+|_+$/g, '');    // Remove leading/trailing underscores
     }
     
     /**
