@@ -1,0 +1,75 @@
+# ########################################
+# # VS Code Extension - Git Ignore File #
+# ########################################
+
+# # # # # # # # # # # # # # # # # # # # #
+# # 1. Dependencies & Build Artifacts    #
+# # # # # # # # # # # # # # # # # # # # #
+
+# Node modules
+node_modules/
+
+# Compiled JavaScript output (the 'out' directory is standard for VS Code extensions)
+out/
+
+# Webpack build output (if you use it)
+dist/
+
+# Package lock files
+package-lock.json
+yarn.lock
+
+# # # # # # # # # # # # # # # # # # # # #
+# # 2. VS Code & Editor Specific Files   #
+# # # # # # # # # # # # # # # # # # # # #
+
+# VS Code editor folder and files
+.vscode/
+!.vscode/extensions.json # It's good practice to commit this to recommend extensions
+!.vscode/tasks.json      # Commit if you have custom build tasks
+!.vscode/launch.json     # Commit if you have custom launch configurations
+
+# # # # # # # # # # # # # # # # # # # # #
+# # 3. Test Output                       #
+# # # # # # # # # # # # # # # # # # # # #
+
+# Test run results from VS Code's test runner
+**/.vscode-test*
+
+# # # # # # # # # # # # # # # # # # # # #
+# # 4. Logs & Environment Files          #
+# # # # # # # # # # # # # # # # # # # # #
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# # # # # # # # # # # # # # # # # # # # #
+# # 5. OS Generated Files                #
+# # # # # # # # # # # # # # # # # # # # #
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
