@@ -17,6 +17,10 @@
             {
                 "command": "tic80.helloWorld",
                 "title": "TIC-80: Hello World"
+            },
+            {
+                "command": "tic80.showDashboard",
+                "title": "TIC-80: Show Dashboard"
             }
         ]
     },
