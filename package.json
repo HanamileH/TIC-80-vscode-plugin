@@ -1,0 +1,34 @@
+{
+    "name": "tic80-cartridge-tool",
+    "displayName": "TIC-80 Cartridge Tool",
+    "description": "TIC-80 game development extension for VS Code",
+    "version": "0.0.1",
+    "engines": {
+        "vscode": "^1.85.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "activationEvents": [
+    ],
+    "main": "./out/extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "tic80.helloWorld",
+                "title": "TIC-80: Hello World"
+            }
+        ]
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./",
+        "pretest": "npm run compile"
+    },
+    "devDependencies": {
+        "@types/vscode": "^1.85.0",
+        "@types/node": "^16.18.34",
+        "typescript": "^5.2.2"
+    }
+}
