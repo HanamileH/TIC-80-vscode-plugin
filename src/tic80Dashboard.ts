@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { ProjectManager } from './projectManager';
 import { TIC80ProjectConfig } from './projectTypes';
 
@@ -250,7 +251,7 @@ export class TIC80Dashboard {
         </head>
         <body>
             <div class="container">
-                <h1>🎮 TIC-80 Dashboard</h1>
+                <h1>TIC-80 Dashboard</h1>
                 
                 <!-- Project Status Section -->
                 <div id="project-status" class="project-status no-project">
@@ -390,7 +391,55 @@ export class TIC80Dashboard {
                     
                     saveState();
                 }
+                    
                 
+                // Handle build completion
+                function handleBuildComplete(path, success) {
+                    if (success) {
+                        addLogEntry(\`Cartridge built: \${path}\`, 'success');
+                        
+                        // Show build success section
+                        showBuildResult(path);
+                    } else {
+                        addLogEntry(\`Build failed\`, 'error');
+                    }
+                }
+
+                // Show build result
+                function showBuildResult(cartridgePath) {
+                    const buildResultHtml = \`
+                        <div style="margin-top: 15px; padding: 10px; background: var(--vscode-testing-iconPassed); border-radius: 3px;">
+                            <strong>Build Successful!</strong>
+                            <br>
+                            <small>Cartridge saved to:</small>
+                            <br>
+                            <code style="font-size: 11px;">\${cartridgePath}</code>
+                            <br><br>
+                            <button onclick="openInExplorer('\${cartridgePath}')" style="font-size: 12px;">
+                                Open in File Explorer
+                            </button>
+                        </div>
+                    \`;
+                    
+                    // Add or update build result section
+                    let resultDiv = document.getElementById('build-result');
+                    if (!resultDiv) {
+                        resultDiv = document.createElement('div');
+                        resultDiv.id = 'build-result';
+                        document.querySelector('.container').appendChild(resultDiv);
+                    }
+                    resultDiv.innerHTML = buildResultHtml;
+                }
+
+                // Open file in explorer (placeholder for now)
+                function openInExplorer(path) {
+                    addLogEntry(\`Would open: \${path}\`, 'info');
+                    vscode.postMessage({
+                        command: 'openInExplorer',
+                        path: path
+                    });
+                }
+
                 // Save state to persist across reloads
                 function saveState() {
                     state.logEntries = logEntries;
@@ -420,6 +469,14 @@ export class TIC80Dashboard {
                             
                         case 'testResponse':
                             addLogEntry(message.text, 'info');
+                            break;
+                            
+                        case 'buildComplete':
+                            handleBuildComplete(message.path, message.success);
+                            break;
+                            
+                        case 'openInExplorer':
+                            // Will be implemented later
                             break;
                     }
                 });
@@ -529,22 +586,76 @@ export class TIC80Dashboard {
      * Handle build project request
      */
     private async _handleBuildProject() {
-        this._panel.webview.postMessage({
-            command: 'actionResponse',
-            text: 'Build project feature coming soon!'
-        });
-        vscode.window.showInformationMessage('Build functionality will be implemented next');
+        try {
+            this._panel.webview.postMessage({
+                command: 'actionResponse',
+                text: 'Starting build process...'
+            });
+            
+            const cartridgePath = await this._projectManager.buildCurrentProject();
+            
+            if (cartridgePath) {
+                this._panel.webview.postMessage({
+                    command: 'actionResponse',
+                    text: `Cartridge built successfully!`
+                });
+                
+                // Update log with build info
+                this._panel.webview.postMessage({
+                    command: 'buildComplete',
+                    path: cartridgePath,
+                    success: true
+                });
+                
+                // Show in VS Code notification
+                vscode.window.showInformationMessage(
+                    `TIC-80 cartridge built: ${path.basename(cartridgePath)}`
+                );
+            } else {
+                this._panel.webview.postMessage({
+                    command: 'error',
+                    text: 'Build failed. Check error messages above.'
+                });
+            }
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            this._panel.webview.postMessage({
+                command: 'error',
+                text: `Build error: ${errorMessage}`
+            });
+        }
     }
     
     /**
      * Handle run project request
      */
     private async _handleRunProject() {
-        this._panel.webview.postMessage({
-            command: 'actionResponse',
-            text: 'Run project feature coming soon!'
-        });
-        vscode.window.showInformationMessage('Run functionality will be implemented next');
+        try {
+            this._panel.webview.postMessage({
+                command: 'actionResponse',
+                text: 'Building and running project...'
+            });
+            
+            const success = await this._projectManager.buildAndRunCurrentProject();
+            
+            if (success) {
+                this._panel.webview.postMessage({
+                    command: 'actionResponse',
+                    text: 'Build and run completed!'
+                });
+            } else {
+                this._panel.webview.postMessage({
+                    command: 'error',
+                    text: 'Build and run failed.'
+                });
+            }
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            this._panel.webview.postMessage({
+                command: 'error',
+                text: `Run error: ${errorMessage}`
+            });
+        }
     }
     
     /**

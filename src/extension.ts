@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { TIC80Dashboard } from './tic80Dashboard';
+import { ProjectManager } from './projectManager';
 
 /**
  * Extension activation function
@@ -7,6 +8,7 @@ import { TIC80Dashboard } from './tic80Dashboard';
 export function activate(context: vscode.ExtensionContext) {
     
     console.log('TIC-80 Extension activated');
+    const projectManager = new ProjectManager();
     
     // Register hello world command
     const helloDisposable = vscode.commands.registerCommand('tic80.helloWorld', () => {
@@ -18,8 +20,39 @@ export function activate(context: vscode.ExtensionContext) {
         TIC80Dashboard.createOrShow(context.extensionUri);
     });
     
+    // Register build project command
+    const buildDisposable = vscode.commands.registerCommand('tic80.buildProject', async () => {
+        const isProject = await projectManager.isTIC80Project();
+        
+        if (!isProject) {
+            vscode.window.showErrorMessage('No TIC-80 project found. Please open a project first.');
+            return;
+        }
+        
+        await projectManager.loadProject();
+        await projectManager.buildCurrentProject();
+    });
+    
+    // Register build and run command
+    const buildAndRunDisposable = vscode.commands.registerCommand('tic80.buildAndRun', async () => {
+        const isProject = await projectManager.isTIC80Project();
+        
+        if (!isProject) {
+            vscode.window.showErrorMessage('No TIC-80 project found. Please open a project first.');
+            return;
+        }
+        
+        await projectManager.loadProject();
+        await projectManager.buildAndRunCurrentProject();
+    });
+    
     // Add to subscriptions
-    context.subscriptions.push(helloDisposable, dashboardDisposable);
+    context.subscriptions.push(
+        helloDisposable,
+        dashboardDisposable,
+        buildDisposable,
+        buildAndRunDisposable
+    );
     
     // Show activation message
     vscode.window.showInformationMessage('TIC-80 Extension is now active!');
