@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { TIC80ProjectConfig, DEFAULT_PROJECT_CONFIG, DEFAULT_LUA_CODE } from './projectTypes';
 import { CartridgeBuilder } from './cartridgeBuilder';
+import { ResourceManager } from './resourceManager';
 
 /**
  * Project Manager - handles project creation, loading and validation
@@ -13,9 +14,11 @@ export class ProjectManager {
     private currentProject: TIC80ProjectConfig | null = null;
     private projectRoot: string | null = null;
     private cartridgeBuilder: CartridgeBuilder;
+    private resourceManager: ResourceManager;
     
     constructor() {
         this.cartridgeBuilder = new CartridgeBuilder();
+        this.resourceManager = new ResourceManager();
     }
 
     /**
@@ -60,7 +63,14 @@ export class ProjectManager {
             return null;
         }
     }
-    
+
+    /**
+     * Create resource templates for new project
+     */
+    private async createResourceTemplates(projectPath: string): Promise<void> {
+        await this.resourceManager.createResourceTemplates(projectPath);
+    }
+
     /**
      * Create a new TIC-80 project
      */
@@ -112,6 +122,9 @@ export class ProjectManager {
             // Create project structure
             await this.createProjectStructure(projectPath, projectConfig);
             
+            // Create resource templates
+            await this.createResourceTemplates(projectPath);
+            
             // Save configuration
             const configPath = path.join(projectPath, ProjectManager.CONFIG_FILE);
             await fs.promises.writeFile(
@@ -146,6 +159,28 @@ export class ProjectManager {
             vscode.window.showErrorMessage(`Failed to create project: ${error}`);
             return null;
         }
+    }
+        /**
+     * Scan and get all resources in current project
+     */
+    async getProjectResources(): Promise<Record<string, any>> {
+        if (!this.projectRoot) {
+            return {};
+        }
+        
+        const resources = await this.resourceManager.scanResources(this.projectRoot);
+        return resources;
+    }
+    
+    /**
+     * Validate project resources
+     */
+    async validateProjectResources(): Promise<{ valid: boolean; errors: string[] }> {
+        if (!this.projectRoot) {
+            return { valid: false, errors: ['Project not loaded'] };
+        }
+        
+        return await this.resourceManager.validateResources(this.projectRoot);
     }
     
     /**

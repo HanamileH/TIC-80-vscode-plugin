@@ -2,12 +2,20 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { TIC80ProjectConfig } from './projectTypes';
+import { ResourceFiles } from './resourceTypes';
+import { ResourceManager } from './resourceManager';
 
 /**
  * Cartridge Builder - creates TIC-80 .lua cartridges from project files
  */
 export class CartridgeBuilder {
     
+    private resourceManager: ResourceManager;
+    
+    constructor() {
+        this.resourceManager = new ResourceManager();
+    }
+
     /**
      * Build a TIC-80 cartridge from project configuration
      * @param projectPath Root path of the project
@@ -21,6 +29,17 @@ export class CartridgeBuilder {
                 throw new Error('Invalid project configuration');
             }
             
+            // Scan for resources
+            const resources = await this.resourceManager.scanResources(projectPath);
+            
+            // Validate resources
+            const validation = await this.resourceManager.validateResources(projectPath);
+            if (!validation.valid) {
+                vscode.window.showWarningMessage(
+                    `Resource validation warnings:\n${validation.errors.join('\n')}`
+                );
+            }
+            
             // Create dist directory if it doesn't exist
             const distPath = path.join(projectPath, 'dist');
             await fs.promises.mkdir(distPath, { recursive: true });
@@ -29,15 +48,20 @@ export class CartridgeBuilder {
             const cartridgePath = path.join(distPath, `cart.lua`);
             
             // Build cartridge content
-            const cartridgeContent = await this.buildCartridgeContent(projectPath, config);
+            const cartridgeContent = await this.buildCartridgeContent(
+                projectPath, 
+                config,
+                resources
+            );
             
             // Write cartridge file
             await fs.promises.writeFile(cartridgePath, cartridgeContent, 'utf8');
             
-            // Show success message
-            vscode.window.showInformationMessage(
-                `Cartridge built successfully: cart.lua`
-            );
+            // Show success message with resource info
+            const resourceCount = this.countResources(resources);
+            const message = `Cartridge built successfully: cart.lua`;
+            const detail = resourceCount > 0 ? ` (${resourceCount} resources included)` : '';
+            vscode.window.showInformationMessage(message + detail);
             
             return cartridgePath;
             
@@ -49,6 +73,19 @@ export class CartridgeBuilder {
         }
     }
     
+    /**
+     * Count total number of resources
+     */
+    private countResources(resources: ResourceFiles): number {
+        let count = 0;
+        for (const bankResources of Object.values(resources)) {
+            // Type assertion to ensure bankResources is treated as an object
+            const typedBankResources = bankResources as Record<string, unknown>;
+            count += Object.keys(typedBankResources).length;
+        }
+        return count;
+    }
+
     /**
      * Validate project configuration before building
      */
@@ -88,7 +125,8 @@ export class CartridgeBuilder {
      */
     private async buildCartridgeContent(
         projectPath: string, 
-        config: TIC80ProjectConfig
+        config: TIC80ProjectConfig,
+        resources: ResourceFiles
     ): Promise<string> {
         const lines: string[] = [];
         
@@ -108,8 +146,19 @@ export class CartridgeBuilder {
             }
         }
         
-        // Add cartridge footer (for future resource inclusion)
-        lines.push(this.generateCartridgeFooter());
+        // Add cartridge footer
+        lines.push(this.generateCartridgeFooter(resources));
+        
+        // Add resource sections if any resources exist
+        const resourceSections = this.resourceManager.getAllResourcesFormatted(resources);
+        if (resourceSections.trim()) {
+            lines.push(''); // Empty line before resources
+            lines.push('-- ============================================');
+            lines.push('-- Resource Data');
+            lines.push('-- ============================================');
+            lines.push('');
+            lines.push(resourceSections);
+        }
         
         return lines.join('\n');
     }
@@ -175,19 +224,39 @@ export class CartridgeBuilder {
     }
     
     /**
-     * Generate cartridge footer (for future resource support)
+     * Generate cartridge footer with resource summary
      */
-    private generateCartridgeFooter(): string {
-        return [
-            '',
+    private generateCartridgeFooter(resources: ResourceFiles): string {
+        const resourceCount = this.countResources(resources);
+        const bankCount = Object.keys(resources).length;
+        
+        const footerLines = [
             '-- ============================================',
             '-- End of cartridge',
-            '-- Resources (sprites, maps, music) will be',
-            '-- added here in future versions',
-            '-- ============================================'
-        ].join('\n');
+            `-- Resources included: ${resourceCount}`,
+            `-- Resource banks used: ${bankCount}`,
+            '-- ============================================',
+            '',
+        ];
+        
+        if (resourceCount === 0) {
+            footerLines.splice(2, 0, '-- Note: No resource files found in assets/ directory');
+        }
+        
+        // Add resource summary
+        if (resourceCount > 0) {
+            footerLines.splice(3, 0, '-- Resource summary:');
+            for (const [bankStr, bankResources] of Object.entries(resources)) {
+                const typedBankResources = bankResources as Record<string, unknown>;
+                const bank = bankStr === '0' ? 'Main' : `Bank ${bankStr}`;
+                const resourceList = Object.keys(typedBankResources).join(', ');
+                footerLines.splice(4, 0, `-- ${bank}: ${resourceList}`);
+            }
+        }
+        
+        return footerLines.join('\n');
     }
-    
+
     /**
      * Check if a file exists and is readable
      */
