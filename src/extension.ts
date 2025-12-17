@@ -9,11 +9,6 @@ export function activate(context: vscode.ExtensionContext) {
     console.log('TIC-80 Extension activated');
     const projectManager = new ProjectManager(context);
     
-    // Register hello world command
-    const helloDisposable = vscode.commands.registerCommand('tic80.helloWorld', () => {
-        vscode.window.showInformationMessage('Hello from TIC-80 Extension!');
-    });
-    
     // Register build project command
     const buildDisposable = vscode.commands.registerCommand('tic80.buildProject', async () => {
         const isProject = await projectManager.isTIC80Project();
@@ -96,7 +91,6 @@ export function activate(context: vscode.ExtensionContext) {
     
     // Add to subscriptions
     context.subscriptions.push(
-        helloDisposable,
         buildDisposable,
         runDisposable,
         buildAndRunDisposable,

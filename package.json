@@ -16,10 +16,6 @@
     "contributes": {
         "commands": [
             {
-                "command": "tic80.helloWorld",
-                "title": "TIC-80: Hello World"
-            },
-            {
                 "command": "tic80.buildProject",
                 "title": "TIC-80: Build Project",
                 "category": "TIC-80"
