@@ -47,6 +47,21 @@
                 "command": "tic80.openConfig",
                 "title": "TIC-80: Open Configuration",
                 "category": "TIC-80"
+            },
+            {
+                "command": "tic80.syncResources",
+                "title": "TIC-80: Sync Resources from Cartridge",
+                "category": "TIC-80"
+            },
+            {
+                "command": "tic80.toggleAutoSync",
+                "title": "TIC-80: Toggle Auto-Sync",
+                "category": "TIC-80"
+            },
+            {
+                "command": "tic80.checkSync",
+                "title": "TIC-80: Check for Resource Changes",
+                "category": "TIC-80"
             }
         ],
         "configuration": {
@@ -82,6 +97,23 @@
                     "type": "boolean",
                     "default": true,
                     "description": "Close TIC-80 when game exits"
+                },
+                "tic80.autoSyncResources": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Automatically sync resource changes from cartridge back to project files"
+                },
+                "tic80.syncDebounceTime": {
+                    "type": "number",
+                    "default": 2000,
+                    "minimum": 500,
+                    "maximum": 10000,
+                    "description": "Debounce time for auto-sync in milliseconds"
+                },
+                "tic80.notifyOnChanges": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Show notification when resource changes are detected"
                 }
             }
         }

@@ -68,6 +68,37 @@ export function activate(context: vscode.ExtensionContext) {
     const configDisposable = vscode.commands.registerCommand('tic80.openConfig', () => {
         projectManager.openTIC80Configuration();
     });
+
+    // Register sync resources command
+    const syncDisposable = vscode.commands.registerCommand('tic80.syncResources', async () => {
+        const isProject = await projectManager.isTIC80Project();
+        
+        if (!isProject) {
+            vscode.window.showErrorMessage('No TIC-80 project found. Please open a project first.');
+            return;
+        }
+        
+        await projectManager.loadProject();
+        await projectManager.syncResourcesFromCartridge();
+    });
+
+    // Register toggle auto-sync command
+    const toggleSyncDisposable = vscode.commands.registerCommand('tic80.toggleAutoSync', () => {
+        projectManager.toggleAutoSync();
+    });
+    
+    // Register check sync command
+    const checkSyncDisposable = vscode.commands.registerCommand('tic80.checkSync', async () => {
+        const isProject = await projectManager.isTIC80Project();
+        
+        if (!isProject) {
+            vscode.window.showErrorMessage('No TIC-80 project found. Please open a project first.');
+            return;
+        }
+        
+        await projectManager.loadProject();
+        await projectManager.checkForResourceChanges();
+    });
     
     // Add to subscriptions
     context.subscriptions.push(
@@ -77,9 +108,20 @@ export function activate(context: vscode.ExtensionContext) {
         runDisposable,
         buildAndRunDisposable,
         testTIC80Disposable,
-        configDisposable
+        configDisposable,
+        syncDisposable,
+        toggleSyncDisposable,
+        checkSyncDisposable
     );
     
+    // Start watching when extension activates (if project is loaded)
+    setTimeout(async () => {
+        const isProject = await projectManager.isTIC80Project();
+        if (isProject) {
+            await projectManager.loadProject();
+        }
+    }, 1000);
+
     // Show activation message
     vscode.window.showInformationMessage('TIC-80 Extension is now active!');
     

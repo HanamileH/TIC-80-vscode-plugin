@@ -139,7 +139,8 @@ export class ResourceManager {
                     return `-- ${index}:${content}`;
                 }
             }
-            return line;
+            // If line doesn't match expected format, still add -- prefix
+            return `-- ${line}`;
         });
         
         // Build resource section
@@ -154,24 +155,32 @@ export class ResourceManager {
     }
     
     /**
-     * Clean and validate resource data
+     * Clean resource data from file format (ensure proper indexing)
      */
     private cleanResourceData(data: string): string {
-        // Remove empty lines and trim
+        // Split into lines and remove empty lines
         const lines = data.split('\n')
             .map(line => line.trim())
             .filter(line => line.length > 0);
         
         // Validate each line
         const validLines = lines.filter(line => {
+            // Remove -- prefix if present (from previous parsing)
+            let cleanLine = line;
+            if (cleanLine.startsWith('-- ')) {
+                cleanLine = cleanLine.substring(3);
+            } else if (cleanLine.startsWith('--')) {
+                cleanLine = cleanLine.substring(2);
+            }
+            
             // Check if line matches TIC-80 resource format
             // Format: INDEX:DATA where INDEX is 1-3 digits, DATA is hex
-            if (/^\d{1,3}:[0-9a-f]+$/i.test(line)) {
+            if (/^\d{1,3}:[0-9a-f]+$/i.test(cleanLine)) {
                 return true;
             }
             
             // Also allow lines without index (just hex data)
-            if (/^[0-9a-f]+$/i.test(line)) {
+            if (/^[0-9a-f]+$/i.test(cleanLine)) {
                 return true;
             }
             
@@ -181,18 +190,31 @@ export class ResourceManager {
         
         // Add indices if missing
         const linesWithIndices = validLines.map((line, index) => {
-            if (/^\d{1,3}:/i.test(line)) {
-                return line; // Already has index
+            // Remove -- prefix if present
+            let cleanLine = line;
+            if (cleanLine.startsWith('-- ')) {
+                cleanLine = cleanLine.substring(3);
+            } else if (cleanLine.startsWith('--')) {
+                cleanLine = cleanLine.substring(2);
+            }
+            
+            if (/^\d{1,3}:/i.test(cleanLine)) {
+                // Already has index, ensure 3-digit format
+                const match = cleanLine.match(/^(\d{1,3}):(.+)$/);
+                if (match) {
+                    const paddedIndex = match[1].padStart(3, '0');
+                    return `${paddedIndex}:${match[2]}`;
+                }
             }
             
             // Add 3-digit index
             const paddedIndex = (index + 1).toString().padStart(3, '0');
-            return `${paddedIndex}:${line}`;
+            return `${paddedIndex}:${cleanLine}`;
         });
         
         return linesWithIndices.join('\n');
     }
-    
+
     /**
      * Get all resources formatted for cartridge
      * @param resources Resource files map

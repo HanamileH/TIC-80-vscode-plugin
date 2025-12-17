@@ -5,6 +5,7 @@ import { TIC80ProjectConfig, DEFAULT_PROJECT_CONFIG, DEFAULT_LUA_CODE } from './
 import { CartridgeBuilder } from './cartridgeBuilder';
 import { ResourceManager } from './resourceManager';
 import { TIC80Runner } from './tic80Runner';
+import { SyncService } from './syncService';
 
 /**
  * Project Manager - handles project creation, loading and validation
@@ -17,11 +18,13 @@ export class ProjectManager {
     private cartridgeBuilder: CartridgeBuilder;
     private resourceManager: ResourceManager;
     private tic80Runner: TIC80Runner;
+    private syncService: SyncService;
     
     constructor(context: vscode.ExtensionContext) {
         this.cartridgeBuilder = new CartridgeBuilder();
         this.resourceManager = new ResourceManager();
         this.tic80Runner = new TIC80Runner(context);
+        this.syncService = new SyncService();
     }
 
     /**
@@ -45,7 +48,7 @@ export class ProjectManager {
     }
     
     /**
-     * Load project configuration from current workspace
+     * Load project and start watching for changes
      */
     async loadProject(): Promise<TIC80ProjectConfig | null> {
         const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -60,11 +63,148 @@ export class ProjectManager {
         try {
             const configData = await fs.promises.readFile(configPath, 'utf8');
             this.currentProject = JSON.parse(configData);
+            
+            // Start watching for cartridge changes
+            await this.startWatchingForChanges();
+            
             return this.currentProject;
         } catch (error) {
             console.error('Failed to load project:', error);
             return null;
         }
+    }
+
+    /**
+     * Start watching for cartridge changes
+     */
+    private async startWatchingForChanges(): Promise<void> {
+        if (!this.projectRoot) {
+            return;
+        }
+        
+        // Check if auto-sync is enabled
+        const config = vscode.workspace.getConfiguration('tic80');
+        const autoSync = config.get<boolean>('autoSyncResources', true);
+        
+        if (autoSync) {
+            await this.syncService.startWatching(this.projectRoot);
+        }
+    }
+    
+    /**
+     * Stop watching for changes
+     */
+    stopWatching(): void {
+        this.syncService.stopWatching();
+    }
+    
+    /**
+     * Manually sync resources from cartridge
+     */
+    async syncResourcesFromCartridge(cartridgePath?: string): Promise<boolean> {
+        if (!this.projectRoot) {
+            vscode.window.showErrorMessage('No project loaded');
+            return false;
+        }
+        
+        // Find cartridge if not specified
+        let finalCartridgePath = cartridgePath;
+        if (!finalCartridgePath) {
+            const distPath = path.join(this.projectRoot, 'dist');
+            if (fs.existsSync(distPath)) {
+                const files = await fs.promises.readdir(distPath);
+                const luaFiles = files
+                    .filter(f => f.endsWith('.lua'))
+                    .map(f => path.join(distPath, f))
+                    .sort((a, b) => {
+                        return fs.statSync(b).mtime.getTime() - fs.statSync(a).mtime.getTime();
+                    });
+                
+                if (luaFiles.length === 0) {
+                    vscode.window.showErrorMessage('No cartridge found. Build project first.');
+                    return false;
+                }
+                
+                finalCartridgePath = luaFiles[0];
+            } else {
+                vscode.window.showErrorMessage('No dist folder found. Build project first.');
+                return false;
+            }
+        }
+        
+        return await this.syncService.manualSync(finalCartridgePath, this.projectRoot);
+    }
+
+    /**
+     * Toggle auto-sync feature
+     */
+    toggleAutoSync(): void {
+        const status = this.syncService.getSyncStatus();
+        const newState = !status.enabled;
+        
+        this.syncService.setSyncEnabled(newState);
+        
+        if (newState && this.projectRoot) {
+            this.syncService.startWatching(this.projectRoot);
+            vscode.window.showInformationMessage('Auto-sync enabled');
+        } else {
+            this.syncService.stopWatching();
+            vscode.window.showInformationMessage('Auto-sync disabled');
+        }
+    }
+
+    /**
+     * Check if resources need syncing
+     */
+    async checkForResourceChanges(): Promise<void> {
+        if (!this.projectRoot) {
+            vscode.window.showErrorMessage('No project loaded');
+            return;
+        }
+        
+        // Find latest cartridge
+        const distPath = path.join(this.projectRoot, 'dist');
+        if (!fs.existsSync(distPath)) {
+            vscode.window.showInformationMessage('No cartridge found. Build project first.');
+            return;
+        }
+        
+        const files = await fs.promises.readdir(distPath);
+        const luaFiles = files
+            .filter(f => f.endsWith('.lua'))
+            .map(f => path.join(distPath, f))
+            .sort((a, b) => {
+                return fs.statSync(b).mtime.getTime() - fs.statSync(a).mtime.getTime();
+            });
+        
+        if (luaFiles.length === 0) {
+            vscode.window.showInformationMessage('No cartridge found. Build project first.');
+            return;
+        }
+        
+        const cartridgePath = luaFiles[0];
+        const needsSync = await this.syncService.checkSyncNeeded(cartridgePath, this.projectRoot);
+        
+        if (needsSync) {
+            const choice = await vscode.window.showInformationMessage(
+                'Resource changes detected in cartridge. Sync now?',
+                'Sync Now',
+                'Ignore'
+            );
+            
+            if (choice === 'Sync Now') {
+                await this.syncResourcesFromCartridge(cartridgePath);
+            }
+        } else {
+            vscode.window.showInformationMessage('No resource changes detected');
+        }
+    }
+    
+    /**
+     * Get sync status
+     */
+    getSyncStatus(): { enabled: boolean; watching: boolean } {
+        return this.syncService.getSyncStatus();
     }
 
     /**
