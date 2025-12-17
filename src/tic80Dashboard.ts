@@ -23,9 +23,9 @@ export class TIC80Dashboard {
     /**
      * Private constructor
      */
-    private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
+    private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, context: vscode.ExtensionContext) {
         this._panel = panel;
-        this._projectManager = new ProjectManager();
+        this._projectManager = new ProjectManager(context);
         
         // Set WebView options
         this._panel.webview.options = {
@@ -58,7 +58,7 @@ export class TIC80Dashboard {
     /**
      * Create or show the dashboard panel
      */
-    public static createOrShow(extensionUri: vscode.Uri) {
+    public static createOrShow(extensionUri: vscode.Uri, context: vscode.ExtensionContext) {
         // If panel already exists, show it
         if (TIC80Dashboard.currentPanel) {
             TIC80Dashboard.currentPanel._panel.reveal(vscode.ViewColumn.Two);
@@ -76,7 +76,7 @@ export class TIC80Dashboard {
             }
         );
         
-        TIC80Dashboard.currentPanel = new TIC80Dashboard(panel, extensionUri);
+        TIC80Dashboard.currentPanel = new TIC80Dashboard(panel, extensionUri, context);
     }
     
     /**
@@ -633,7 +633,7 @@ export class TIC80Dashboard {
         try {
             this._panel.webview.postMessage({
                 command: 'actionResponse',
-                text: 'Building and running project...'
+                text: 'Running project in TIC-80...'
             });
             
             const success = await this._projectManager.buildAndRunCurrentProject();
@@ -641,12 +641,17 @@ export class TIC80Dashboard {
             if (success) {
                 this._panel.webview.postMessage({
                     command: 'actionResponse',
-                    text: 'Build and run completed!'
+                    text: 'TIC-80 launched successfully!'
+                });
+                
+                this._panel.webview.postMessage({
+                    command: 'runComplete',
+                    success: true
                 });
             } else {
                 this._panel.webview.postMessage({
                     command: 'error',
-                    text: 'Build and run failed.'
+                    text: 'Failed to run project. Check TIC-80 installation.'
                 });
             }
         } catch (error) {
@@ -658,6 +663,27 @@ export class TIC80Dashboard {
         }
     }
     
+    /*
+     * Handle test TIC-80 installation request
+     */
+    private async _handleTestTIC80() {
+        try {
+            this._panel.webview.postMessage({
+                command: 'actionResponse',
+                text: 'Testing TIC-80 installation...'
+            });
+            
+            await this._projectManager.testTIC80Installation();
+            
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            this._panel.webview.postMessage({
+                command: 'error',
+                text: `Test error: ${errorMessage}`
+            });
+        }
+}
+
     /**
      * Cleanup resources
      */

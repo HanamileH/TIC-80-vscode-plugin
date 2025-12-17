@@ -8,7 +8,7 @@ import { ProjectManager } from './projectManager';
 export function activate(context: vscode.ExtensionContext) {
     
     console.log('TIC-80 Extension activated');
-    const projectManager = new ProjectManager();
+    const projectManager = new ProjectManager(context);
     
     // Register hello world command
     const helloDisposable = vscode.commands.registerCommand('tic80.helloWorld', () => {
@@ -17,7 +17,7 @@ export function activate(context: vscode.ExtensionContext) {
     
     // Register dashboard command
     const dashboardDisposable = vscode.commands.registerCommand('tic80.showDashboard', () => {
-        TIC80Dashboard.createOrShow(context.extensionUri);
+        TIC80Dashboard.createOrShow(context.extensionUri, context);
     });
     
     // Register build project command
@@ -33,6 +33,19 @@ export function activate(context: vscode.ExtensionContext) {
         await projectManager.buildCurrentProject();
     });
     
+    // Register run project command
+    const runDisposable = vscode.commands.registerCommand('tic80.runProject', async () => {
+        const isProject = await projectManager.isTIC80Project();
+        
+        if (!isProject) {
+            vscode.window.showErrorMessage('No TIC-80 project found. Please open a project first.');
+            return;
+        }
+        
+        await projectManager.loadProject();
+        await projectManager.runCurrentProject();
+    });
+    
     // Register build and run command
     const buildAndRunDisposable = vscode.commands.registerCommand('tic80.buildAndRun', async () => {
         const isProject = await projectManager.isTIC80Project();
@@ -46,12 +59,25 @@ export function activate(context: vscode.ExtensionContext) {
         await projectManager.buildAndRunCurrentProject();
     });
     
+    // Register test TIC-80 command
+    const testTIC80Disposable = vscode.commands.registerCommand('tic80.testTIC80', async () => {
+        await projectManager.testTIC80Installation();
+    });
+    
+    // Register open configuration command
+    const configDisposable = vscode.commands.registerCommand('tic80.openConfig', () => {
+        projectManager.openTIC80Configuration();
+    });
+    
     // Add to subscriptions
     context.subscriptions.push(
         helloDisposable,
         dashboardDisposable,
         buildDisposable,
-        buildAndRunDisposable
+        runDisposable,
+        buildAndRunDisposable,
+        testTIC80Disposable,
+        configDisposable
     );
     
     // Show activation message

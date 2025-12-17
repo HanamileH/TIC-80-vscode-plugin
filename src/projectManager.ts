@@ -4,6 +4,7 @@ import * as path from 'path';
 import { TIC80ProjectConfig, DEFAULT_PROJECT_CONFIG, DEFAULT_LUA_CODE } from './projectTypes';
 import { CartridgeBuilder } from './cartridgeBuilder';
 import { ResourceManager } from './resourceManager';
+import { TIC80Runner } from './tic80Runner';
 
 /**
  * Project Manager - handles project creation, loading and validation
@@ -15,10 +16,12 @@ export class ProjectManager {
     private projectRoot: string | null = null;
     private cartridgeBuilder: CartridgeBuilder;
     private resourceManager: ResourceManager;
+    private tic80Runner: TIC80Runner;
     
-    constructor() {
+    constructor(context: vscode.ExtensionContext) {
         this.cartridgeBuilder = new CartridgeBuilder();
         this.resourceManager = new ResourceManager();
+        this.tic80Runner = new TIC80Runner(context);
     }
 
     /**
@@ -274,6 +277,59 @@ export class ProjectManager {
     }
     
     /**
+     * Run current project in TIC-80
+     */
+    async runCurrentProject(cartridgePath?: string): Promise<boolean> {
+        if (!this.projectRoot) {
+            vscode.window.showErrorMessage('No project loaded. Please open a TIC-80 project first.');
+            return false;
+        }
+        
+        const projectRoot = this.projectRoot;
+        
+        // If no cartridge path provided, find latest
+        let finalCartridgePath = cartridgePath;
+        if (!finalCartridgePath) {
+            const distPath = path.join(projectRoot, 'dist');
+            if (fs.existsSync(distPath)) {
+                const files = await fs.promises.readdir(distPath);
+                const luaFiles = files
+                    .filter(f => f.endsWith('.lua'))
+                    .map(f => path.join(distPath, f))
+                    .sort((a, b) => {
+                        return fs.statSync(b).mtime.getTime() - fs.statSync(a).mtime.getTime();
+                    });
+                
+                if (luaFiles.length > 0) {
+                    finalCartridgePath = luaFiles[0];
+                }
+            }
+        }
+        
+        if (!finalCartridgePath) {
+            const choice = await vscode.window.showWarningMessage(
+                'No cartridge found. Build project first?',
+                'Build and Run',
+                'Cancel'
+            );
+            
+            if (choice === 'Build and Run') {
+                // Build first, then run
+                const builtPath = await this.buildCurrentProject();
+                if (builtPath) {
+                    return await this.tic80Runner.runCartridge(builtPath, projectRoot);
+                }
+                return false;
+            }
+            
+            return false;
+        }
+        
+        // Run the cartridge
+        return await this.tic80Runner.runCartridge(finalCartridgePath, projectRoot);
+    }
+
+    /**
      * Build the current project into a cartridge
      */
     async buildCurrentProject(): Promise<string | null> {
@@ -330,15 +386,49 @@ export class ProjectManager {
      * Build and run current project
      */
     async buildAndRunCurrentProject(): Promise<boolean> {
-        if (!this.currentProject || !this.projectRoot) {
+        if (!this.projectRoot) {
             vscode.window.showErrorMessage('No project loaded. Please open a TIC-80 project first.');
             return false;
         }
         
-        return await this.cartridgeBuilder.buildAndRun(
-            this.projectRoot,
-            this.currentProject
-        );
+        const projectRoot = this.projectRoot;
+        
+        // Show progress notification
+        return await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: "Build and Run",
+            cancellable: true
+        }, async (progress, token) => {
+            try {
+                progress.report({ message: "Building cartridge..." });
+                
+                // Check if we need to build first
+                const config = vscode.workspace.getConfiguration('tic80');
+                const autoBuild = config.get<boolean>('autoBuildBeforeRun', true);
+                
+                let cartridgePath: string | null = null;
+                
+                if (autoBuild) {
+                    // Build the project
+                    cartridgePath = await this.buildCurrentProject();
+                    if (!cartridgePath) {
+                        return false;
+                    }
+                    
+                    progress.report({ message: "Launching TIC-80..." });
+                    
+                    // Run the cartridge
+                    return await this.tic80Runner.runCartridge(cartridgePath, projectRoot);
+                } else {
+                    // Just run existing cartridge
+                    return await this.runCurrentProject();
+                }
+                
+            } catch (error: any) {
+                vscode.window.showErrorMessage(`Build and run failed: ${error.message}`);
+                return false;
+            }
+        });
     }
     
     /**
@@ -409,5 +499,38 @@ export class ProjectManager {
             console.error('Failed to update code files:', error);
             return false;
         }
+    }
+
+    /**
+     * Test TIC-80 installation
+     */
+    async testTIC80Installation(): Promise<void> {
+        const result = await this.tic80Runner.testInstallation();
+        
+        if (result.success) {
+            vscode.window.showInformationMessage(
+                `TIC-80 found: ${result.path}\n` +
+                (result.version ? `Version: ${result.version}` : '')
+            );
+        } else {
+            vscode.window.showErrorMessage(
+                'TIC-80 not found. Please install TIC-80 and configure the path in settings.',
+                'Open Settings',
+                'Visit TIC-80 Website'
+            ).then(choice => {
+                if (choice === 'Open Settings') {
+                    vscode.commands.executeCommand('workbench.action.openSettings', 'tic80.executablePath');
+                } else if (choice === 'Visit TIC-80 Website') {
+                    vscode.env.openExternal(vscode.Uri.parse('https://tic80.com/'));
+                }
+            });
+        }
+    }
+    
+    /**
+     * Open TIC-80 configuration
+     */
+    openTIC80Configuration(): void {
+        this.tic80Runner.openConfiguration();
     }
 }

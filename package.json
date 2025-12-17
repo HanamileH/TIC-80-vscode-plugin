@@ -29,8 +29,23 @@
                 "category": "TIC-80"
             },
             {
+                "command": "tic80.runProject",
+                "title": "TIC-80: Run Project",
+                "category": "TIC-80"
+            },
+            {
                 "command": "tic80.buildAndRun",
                 "title": "TIC-80: Build and Run",
+                "category": "TIC-80"
+            },
+            {
+                "command": "tic80.testTIC80",
+                "title": "TIC-80: Test Installation",
+                "category": "TIC-80"
+            },
+            {
+                "command": "tic80.openConfig",
+                "title": "TIC-80: Open Configuration",
                 "category": "TIC-80"
             }
         ],
@@ -47,6 +62,26 @@
                     "enum": ["lua", "javascript", "fennel", "wren", "squirrel"],
                     "default": "lua",
                     "description": "Default script language for new projects"
+                },
+                "tic80.executablePath": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Path to TIC-80 executable. If empty, will try to find it automatically."
+                },
+                "tic80.runArguments": {
+                    "type": "string",
+                    "default": "--skip --fs ${workspaceFolder}/dist/ --cmd \"load ${cartridge} & run\"",
+                    "description": "Arguments for running TIC-80. Variables: ${workspaceFolder}, ${cartridge}"
+                },
+                "tic80.autoBuildBeforeRun": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Automatically build project before running"
+                },
+                "tic80.closeOnExit": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Close TIC-80 when game exits"
                 }
             }
         }
