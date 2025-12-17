@@ -20,10 +20,6 @@
                 "title": "TIC-80: Hello World"
             },
             {
-                "command": "tic80.showDashboard",
-                "title": "TIC-80: Show Dashboard"
-            },
-            {
                 "command": "tic80.buildProject",
                 "title": "TIC-80: Build Project",
                 "category": "TIC-80"

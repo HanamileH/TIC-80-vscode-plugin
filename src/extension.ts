@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { TIC80Dashboard } from './tic80Dashboard';
 import { ProjectManager } from './projectManager';
 
 /**
@@ -13,11 +12,6 @@ export function activate(context: vscode.ExtensionContext) {
     // Register hello world command
     const helloDisposable = vscode.commands.registerCommand('tic80.helloWorld', () => {
         vscode.window.showInformationMessage('Hello from TIC-80 Extension!');
-    });
-    
-    // Register dashboard command
-    const dashboardDisposable = vscode.commands.registerCommand('tic80.showDashboard', () => {
-        TIC80Dashboard.createOrShow(context.extensionUri, context);
     });
     
     // Register build project command
@@ -103,7 +97,6 @@ export function activate(context: vscode.ExtensionContext) {
     // Add to subscriptions
     context.subscriptions.push(
         helloDisposable,
-        dashboardDisposable,
         buildDisposable,
         runDisposable,
         buildAndRunDisposable,
