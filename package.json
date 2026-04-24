@@ -10,11 +10,25 @@
         "Other"
     ],
     "activationEvents": [
-        "workspaceContains:tic80_project.json"
+        "workspaceContains:tic80_project.json",
+        "onCommand:tic80.newProject",
+        "onCommand:tic80.buildProject",
+        "onCommand:tic80.runProject",
+        "onCommand:tic80.buildAndRun",
+        "onCommand:tic80.testTIC80",
+        "onCommand:tic80.openConfig",
+        "onCommand:tic80.syncResources",
+        "onCommand:tic80.toggleAutoSync",
+        "onCommand:tic80.checkSync"
     ],
     "main": "./out/extension.js",
     "contributes": {
         "commands": [
+            {
+                "command": "tic80.newProject",
+                "title": "TIC-80: New Project (Current Folder)",
+                "category": "TIC-80"
+            },
             {
                 "command": "tic80.buildProject",
                 "title": "TIC-80: Build Project",

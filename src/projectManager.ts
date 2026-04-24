@@ -215,10 +215,24 @@ export class ProjectManager {
     }
 
     /**
-     * Create a new TIC-80 project
+     * Create a new TIC-80 project in the current workspace folder (if any).
+     */
+    async createNewProjectInWorkspace(): Promise<string | null> {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            vscode.window.showErrorMessage('No folder is open. Open a folder first, then run "TIC-80: New Project".');
+            return null;
+        }
+        
+        const projectPath = workspaceFolders[0].uri.fsPath;
+        return await this.createProjectAtPath(projectPath, { openFolderAfterCreate: false, allowNonEmpty: true });
+    }
+
+    /**
+     * Create a new TIC-80 project (asks for folder).
      */
     async createNewProject(): Promise<string | null> {
-        // Ask user for project location
         const projectUri = await vscode.window.showOpenDialog({
             canSelectFiles: false,
             canSelectFolders: true,
@@ -232,12 +246,46 @@ export class ProjectManager {
         }
         
         const projectPath = projectUri[0].fsPath;
+        return await this.createProjectAtPath(projectPath, { openFolderAfterCreate: true, allowNonEmpty: true });
+    }
+
+    private async createProjectAtPath(
+        projectPath: string,
+        options: { openFolderAfterCreate: boolean; allowNonEmpty: boolean }
+    ): Promise<string | null> {
+        const configPath = path.join(projectPath, ProjectManager.CONFIG_FILE);
+        if (fs.existsSync(configPath)) {
+            vscode.window.showErrorMessage(`This folder already contains a TIC-80 project (${ProjectManager.CONFIG_FILE}).`);
+            return null;
+        }
+        
+        if (!options.allowNonEmpty) {
+            const entries = await fs.promises.readdir(projectPath);
+            if (entries.length > 0) {
+                vscode.window.showErrorMessage('Selected folder is not empty.');
+                return null;
+            }
+        } else {
+            const entries = await fs.promises.readdir(projectPath);
+            const wouldCreate = ['src', 'assets', 'dist', ProjectManager.CONFIG_FILE, path.join('src', 'main.lua')];
+            const collisions = wouldCreate.filter(p => fs.existsSync(path.join(projectPath, p)));
+            if (collisions.length > 0) {
+                const choice = await vscode.window.showWarningMessage(
+                    `Some files/folders already exist (${collisions.slice(0, 4).join(', ')}${collisions.length > 4 ? ', ...' : ''}). Create project without overwriting existing files?`,
+                    { modal: true },
+                    'Create'
+                );
+                if (choice !== 'Create') {
+                    return null;
+                }
+            }
+        }
         
         // Ask for project name
         const projectName = await vscode.window.showInputBox({
             prompt: 'Enter project name',
             placeHolder: 'My TIC-80 Game',
-            value: 'My TIC-80 Game',
+            value: path.basename(projectPath) || 'My TIC-80 Game',
             validateInput: (value) => {
                 if (!value || value.trim().length === 0) {
                     return 'Project name cannot be empty';
@@ -251,6 +299,14 @@ export class ProjectManager {
         }
         
         try {
+            const scriptSetting = vscode.workspace.getConfiguration('tic80').get<string>('defaultScriptLanguage', 'lua');
+            let script: TIC80ProjectConfig['cart_metadata']['script'] = 'lua';
+            if (scriptSetting === 'lua') {
+                script = 'lua';
+            } else {
+                vscode.window.showWarningMessage('Only Lua projects are currently supported by the cartridge builder. Project will be created with Lua.');
+            }
+
             // Update project configuration with user input
             const projectConfig: TIC80ProjectConfig = {
                 ...DEFAULT_PROJECT_CONFIG,
@@ -258,8 +314,10 @@ export class ProjectManager {
                 cart_metadata: {
                     ...DEFAULT_PROJECT_CONFIG.cart_metadata,
                     title: projectName,
-                    author: await this.getAuthorName()
-                }
+                    author: await this.getAuthorName(),
+                    script
+                },
+                code_files: ['src/main.lua']
             };
             
             // Create project structure
@@ -269,7 +327,6 @@ export class ProjectManager {
             await this.createResourceTemplates(projectPath);
             
             // Save configuration
-            const configPath = path.join(projectPath, ProjectManager.CONFIG_FILE);
             await fs.promises.writeFile(
                 configPath,
                 JSON.stringify(projectConfig, null, 2),
@@ -278,11 +335,15 @@ export class ProjectManager {
             
             // Create main.lua file
             const mainLuaPath = path.join(projectPath, 'src', 'main.lua');
-            await fs.promises.writeFile(mainLuaPath, DEFAULT_LUA_CODE, 'utf8');
+            if (!fs.existsSync(mainLuaPath)) {
+                await fs.promises.writeFile(mainLuaPath, DEFAULT_LUA_CODE, 'utf8');
+            }
             
             // Create .gitignore
             const gitignorePath = path.join(projectPath, '.gitignore');
-            await fs.promises.writeFile(gitignorePath, 'dist/\n*.tic\n', 'utf8');
+            if (!fs.existsSync(gitignorePath)) {
+                await fs.promises.writeFile(gitignorePath, 'dist/\n*.tic\n', 'utf8');
+            }
             
             // Create empty asset files
             await this.createEmptyAssets(projectPath);
@@ -293,8 +354,18 @@ export class ProjectManager {
             
             vscode.window.showInformationMessage(`Project "${projectName}" created successfully!`);
             
-            // Open the project in new window
-            vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(projectPath));
+            // Open the project in new window if requested
+            if (options.openFolderAfterCreate) {
+                vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(projectPath));
+            } else {
+                // Open main file in current window
+                try {
+                    const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(mainLuaPath));
+                    await vscode.window.showTextDocument(doc, { preview: false });
+                } catch {
+                    // ignore
+                }
+            }
             
             return projectPath;
             
@@ -349,11 +420,13 @@ export class ProjectManager {
     private async createEmptyAssets(projectPath: string): Promise<void> {
         // For now, just create a text file explaining what should be here
         const spritesInfoPath = path.join(projectPath, 'assets', 'sprites.txt');
-        await fs.promises.writeFile(
-            spritesInfoPath,
-            'Place your sprites here (128x128 pixels, indexed colors)\n',
-            'utf8'
-        );
+        if (!fs.existsSync(spritesInfoPath)) {
+            await fs.promises.writeFile(
+                spritesInfoPath,
+                'Place your sprites here (128x128 pixels, indexed colors)\n',
+                'utf8'
+            );
+        }
     }
     
     /**

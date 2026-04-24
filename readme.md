@@ -21,7 +21,7 @@ There is a risk of data loss due to potential bugs in the synchronization and fi
 ### Project Management
 - Create new TIC-80 projects with standardized structure
 - Automatic project detection when opening folders
-- Project configuration via `project.json` file
+- Project configuration via `tic80_project.json` file
 - Support for multiple Lua code files with automatic concatenation
 
 ### Build System
@@ -54,7 +54,7 @@ There is a risk of data loss due to potential bugs in the synchronization and fi
 ## Project Structure
 ```
 my-game/
-├── project.json          # Project configuration
+├── tic80_project.json     # Project configuration
 ├── src/
 │   ├── main.lua         # Main game code
 │   └── *.lua            # Additional Lua modules
@@ -72,12 +72,12 @@ my-game/
 ### Getting Started
 1. Install the extension from VS Code Marketplace
 2. Open Command Palette (Ctrl+Shift+P)
-3. Run "TIC-80: Create New Project"
-4. Select folder and enter project details
+3. Run "TIC-80: New Project (Current Folder)"
+4. Enter project details (if no folder is open, you will be asked to pick one)
 5. Start coding in the `src/` directory
 
 ### Basic Commands
-- **Create New Project**: Set up a new TIC-80 game project
+- **New Project (Current Folder)**: Set up a new TIC-80 game project in the open folder
 - **Build Project**: Compile project into .lua cartridge
 - **Run Project**: Launch game in TIC-80 emulator
 - **Build and Run**: Combine build and run in one step

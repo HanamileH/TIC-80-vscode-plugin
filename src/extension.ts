@@ -8,6 +8,16 @@ export function activate(context: vscode.ExtensionContext) {
     
     console.log('TIC-80 Extension activated');
     const projectManager = new ProjectManager(context);
+
+    // Register new project command
+    const newProjectDisposable = vscode.commands.registerCommand('tic80.newProject', async () => {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (workspaceFolders && workspaceFolders.length > 0) {
+            await projectManager.createNewProjectInWorkspace();
+        } else {
+            await projectManager.createNewProject();
+        }
+    });
     
     // Register build project command
     const buildDisposable = vscode.commands.registerCommand('tic80.buildProject', async () => {
@@ -91,6 +101,7 @@ export function activate(context: vscode.ExtensionContext) {
     
     // Add to subscriptions
     context.subscriptions.push(
+        newProjectDisposable,
         buildDisposable,
         runDisposable,
         buildAndRunDisposable,
@@ -123,8 +134,8 @@ async function checkCurrentWorkspace() {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     
     if (workspaceFolders && workspaceFolders.length > 0) {
-        // Try to find project.json
-        const projectJsonUri = vscode.Uri.joinPath(workspaceFolders[0].uri, 'project.json');
+        // Try to find tic80_project.json
+        const projectJsonUri = vscode.Uri.joinPath(workspaceFolders[0].uri, 'tic80_project.json');
         
         try {
             await vscode.workspace.fs.stat(projectJsonUri);
