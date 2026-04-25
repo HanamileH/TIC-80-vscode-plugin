@@ -2,9 +2,14 @@
     "name": "tic80-cartridge-tool",
     "displayName": "TIC-80 Cartridge Tool",
     "description": "TIC-80 game development extension for VS Code",
+    "publisher": "hanamileh",
     "version": "0.1.0",
     "engines": {
         "vscode": "^1.85.0"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/HanamileH/TIC-80-vscode-plugin"
     },
     "categories": [
         "Other"
@@ -80,7 +85,13 @@
                 },
                 "tic80.defaultScriptLanguage": {
                     "type": "string",
-                    "enum": ["lua", "javascript", "fennel", "wren", "squirrel"],
+                    "enum": [
+                        "lua",
+                        "javascript",
+                        "fennel",
+                        "wren",
+                        "squirrel"
+                    ],
                     "default": "lua",
                     "description": "Default script language for new projects"
                 },
@@ -128,11 +139,13 @@
         "vscode:prepublish": "npm run compile",
         "compile": "tsc -p ./",
         "watch": "tsc -watch -p ./",
-        "pretest": "npm run compile"
+        "package": "vsce package",
+        "pretest": "npm run compile",
+        "publish": "vsce publish"
     },
     "devDependencies": {
-        "@types/vscode": "^1.85.0",
         "@types/node": "^16.18.34",
-        "typescript": "^5.2.2"
+        "@types/vscode": "^1.85.0",
+        "typescript": "^5.9.3"
     }
 }
