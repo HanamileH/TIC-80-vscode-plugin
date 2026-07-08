@@ -36,6 +36,7 @@ There is a risk of data loss due to potential bugs in the synchronization and fi
 - Automatic TIC-80 executable detection
 - Configurable run arguments and options
 - Support for Windows, macOS, and Linux
+- **Pro version** of TIC-80 is required
 
 ### Resource Management
 - Resource file scanning and validation
@@ -58,10 +59,10 @@ my-game/
 ├── src/
 │   ├── main.lua         # Main game code
 │   └── *.lua            # Additional Lua modules
-├── assets/
+├── assets/              # Cartridge resources (created automatically)
 │   ├── tiles.tic_data   # Main bank resources
 │   ├── sprites.tic_data
-│   ├── bank_1/          # Additional resource banks
+│   ├── bank_1/          # Additional resource banks (created when using other banks)
 │   └── bank_2/
 └── dist/
     └── game.lua         # Built cartridge
@@ -74,9 +75,21 @@ my-game/
    - [Visual Studio Code Marketplace](https://marketplace.visualstudio.com/manage/publishers/hanamileh/extensions/tic80-cartridge-tool/hub)
    - Or search "TIC-80 Cartridge tool" (By HanamileH) in VS Code Extensions view (Ctrl+Shift+X)
 2. Open Command Palette (Ctrl+Shift+P)
-3. Run "TIC-80: New Project (Current Folder)"
+3. Run `TIC-80: New Project (Current Folder)`
 4. Enter project details (if no folder is open, you will be asked to pick one)
 5. Start coding in the `src/` directory
+
+### Syncing Resources
+1. Run the built cartridge in the TIC-80 (using `Run project` command or manually)
+2. Make changes to resources in the TIC-80 editor
+3. Use the `Sync Resources` command to update your project files with the changes made in TIC-80
+4. Click `Apply All` to confirm the change of all resources, or select the necessary resources manually
+
+### Managing Multiple Lua Files
+This extension supports working with multiple .lua files and performs their automatic concatenation during the build process.
+At the moment, the files are combined directly, without using `require` statements. The order of concatenation is determined by the order of files in the project configuration file (`tic80_project.json`). You can specify the order of files in the `code_files` array in the configuration file. 
+To add a new Lua file to the project, simply create it in the `src/` directory and add its name to the `code_files` array in the configuration file.
+Please note that the order of combining files is important, and it can change the behavior of your code or cause an error during execution. For example, local variables cannot be used before they are declared.
 
 ### Basic Commands
 - **New Project (Current Folder)**: Set up a new TIC-80 game project in the open folder
