@@ -71,9 +71,7 @@ my-game/
 ## Usage
 
 ### Getting Started
-1. **Download and install** the extension from:
-   - [Visual Studio Code Marketplace](https://marketplace.visualstudio.com/manage/publishers/hanamileh/extensions/tic80-cartridge-tool/hub)
-   - Or search "TIC-80 Cartridge tool" (By HanamileH) in VS Code Extensions view (Ctrl+Shift+X)
+1. **Download and install** the extension from [Github releases](https://github.com/HanamileH/TIC-80-vscode-plugin/releases). Do not install from the VS Code Marketplace, as the version is not currently being updated there.
 2. Open Command Palette (Ctrl+Shift+P)
 3. Run `TIC-80: New Project (Current Folder)`
 4. Enter project details (if no folder is open, you will be asked to pick one)
