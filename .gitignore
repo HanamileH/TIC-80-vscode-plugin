@@ -19,6 +19,9 @@ dist/
 package-lock.json
 yarn.lock
 
+# Compiled VSIX package
+.vsix
+
 # # # # # # # # # # # # # # # # # # # # #
 # # 2. VS Code & Editor Specific Files   #
 # # # # # # # # # # # # # # # # # # # # #
