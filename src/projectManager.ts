@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { TIC80ProjectConfig, DEFAULT_PROJECT_CONFIG, DEFAULT_LUA_CODE } from './projectTypes';
+import { TIC80ProjectConfig, DEFAULT_PROJECT_CONFIG, DEFAULT_LUA_CODE, DEFAULT_TILES_DATA, DEFAULT_PALETTE_DATA } from './projectTypes';
 import { CartridgeBuilder } from './cartridgeBuilder';
 import { ResourceManager } from './resourceManager';
 import { TIC80Runner } from './tic80Runner';
@@ -404,12 +404,21 @@ export class ProjectManager {
      * Create empty asset files
      */
     private async createEmptyAssets(projectPath: string): Promise<void> {
-        // For now, just create a text file explaining what should be here
-        const spritesInfoPath = path.join(projectPath, 'assets', 'sprites.txt');
-        if (!fs.existsSync(spritesInfoPath)) {
+        const tilesPath = path.join(projectPath, 'assets', 'tiles.tic_data');
+        const palettePath = path.join(projectPath, 'assets', 'palette.tic_data');
+
+        if (!fs.existsSync(tilesPath)) {
             await fs.promises.writeFile(
-                spritesInfoPath,
-                'Place your sprites here (128x128 pixels, indexed colors)\n',
+                tilesPath,
+                DEFAULT_TILES_DATA,
+                'utf8'
+            );
+        }
+
+        if (!fs.existsSync(palettePath)) {
+            await fs.promises.writeFile(
+                palettePath,
+                DEFAULT_PALETTE_DATA,
                 'utf8'
             );
         }

@@ -308,10 +308,12 @@ export class ResourceManager {
         await fs.promises.mkdir(assetsPath, { recursive: true });
         
         // Create bank directories
+        /*
         for (let bank = 1; bank <= 7; bank++) {
             const bankPath = path.join(assetsPath, `bank_${bank}`);
             await fs.promises.mkdir(bankPath, { recursive: true });
         }
+        */
         
         vscode.window.showInformationMessage('Resource template files created in assets/ directory');
     }

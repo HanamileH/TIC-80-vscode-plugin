@@ -32,13 +32,13 @@ export interface TIC80ProjectConfig {
 export const DEFAULT_PROJECT_CONFIG: TIC80ProjectConfig = {
     name: "New TIC-80 Project",
     cart_metadata: {
-        title: "New TIC-80 Game",
-        description: "A game made with TIC-80",
-        author: "Developer",
-        version: "0.1.0",
-        license: "MIT",
+        title: "game title",
+        description: "game description",
+        author: "game developer, email, etc.",
+        version: "0.1",
+        license: "MIT License (change this to your license of choice)",
         script: "lua",
-        input: ["mouse", "keyboard", "gamepad"]
+        input: ["keyboard"]
     },
     code_files: ["src/main.lua"]
 };
@@ -61,20 +61,39 @@ export const PROJECT_STRUCTURE = [
 /**
  * Default Lua code for main.lua
  */
-export const DEFAULT_LUA_CODE = `-- TIC-80 game main file
--- Called 60 times per second
+export const DEFAULT_LUA_CODE = `t=0
+x=96
+y=24
 
 function TIC()
-    -- Clear screen with black color (0)
-    cls(0)
-    
-    -- Print text at position (10, 10) with color 15 (white)
-    print("HELLO TIC-80!", 10, 10, 15)
-    
-    -- Draw a rectangle at (80, 60) with size 40x40, color 12
-    rect(80, 60, 40, 40, 12)
-    
-    -- Draw a filled rectangle at (85, 65) with size 30x30, color 3
-    rectb(85, 65, 30, 30, 3)
+
+	if btn(0) then y=y-1 end
+	if btn(1) then y=y+1 end
+	if btn(2) then x=x-1 end
+	if btn(3) then x=x+1 end
+
+	cls(13)
+	spr(1+t%60//30*2,x,y,14,3,0,0,2,2)
+	print("HELLO WORLD!",84,84)
+	t=t+1
 end
 `;
+
+/**
+ * Default tiles data (TIC-80 robot sprite)
+ */
+export const DEFAULT_TILES_DATA = `001:eccccccccc888888caaaaaaaca888888cacccccccacc0ccccacc0ccccacc0ccc
+002:ccccceee8888cceeaaaa0cee888a0ceeccca0ccc0cca0c0c0cca0c0c0cca0c0c
+003:eccccccccc888888caaaaaaaca888888cacccccccacccccccacc0ccccacc0ccc
+004:ccccceee8888cceeaaaa0cee888a0ceeccca0cccccca0c0c0cca0c0c0cca0c0c
+017:cacccccccaaaaaaacaaacaaacaaaaccccaaaaaaac8888888cc000cccecccccec
+018:ccca00ccaaaa0ccecaaa0ceeaaaa0ceeaaaa0cee8888ccee000cceeecccceeee
+019:cacccccccaaaaaaacaaacaaacaaaaccccaaaaaaac8888888cc000cccecccccec
+020:ccca00ccaaaa0ccecaaa0ceeaaaa0ceeaaaa0cee8888ccee000cceeecccceeee
+`;
+
+/*
+ * Default palette data (TIC-80 default palette)
+ */
+
+export const DEFAULT_PALETTE_DATA = `000:1a1c2c5d275db13e53ef7d57ffcd75a7f07038b76425717929366f3b5dc941a6f673eff7f4f4f494b0c2566c86333c57`;
