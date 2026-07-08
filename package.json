@@ -3,7 +3,7 @@
     "displayName": "TIC-80 Cartridge Tool",
     "description": "TIC-80 game development extension for VS Code",
     "publisher": "hanamileh",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "engines": {
         "vscode": "^1.85.0"
     },

@@ -5,7 +5,7 @@ A comprehensive extension for developing games for the TIC-80 fantasy console di
 
 ## ⚠️ Important Beta Warning
 
-**This extension is currently in BETA version (v0.1.0).**
+**This extension is currently in BETA version (v0.2.0).**
 
 ### Data Loss Warning
 There is a risk of data loss due to potential bugs in the synchronization and file management features. The extension performs automated file operations that could potentially overwrite or modify your game files.
