@@ -13,6 +13,7 @@ import { SyncService } from './syncService';
 export class ProjectManager {
     
     private static readonly CONFIG_FILE = 'tic80_project.json';
+    private static readonly BACKUP_DIR = 'backups';
     private currentProject: TIC80ProjectConfig | null = null;
     private projectRoot: string | null = null;
     private cartridgeBuilder: CartridgeBuilder;
@@ -162,27 +163,12 @@ export class ProjectManager {
             return;
         }
         
-        // Find latest cartridge
-        const distPath = path.join(this.projectRoot, 'dist');
-        if (!fs.existsSync(distPath)) {
+        const cartridgePath = await this.findLatestCartridgePath(this.projectRoot);
+        if (!cartridgePath) {
             vscode.window.showInformationMessage('No cartridge found. Build project first.');
             return;
         }
         
-        const files = await fs.promises.readdir(distPath);
-        const luaFiles = files
-            .filter(f => f.endsWith('.lua'))
-            .map(f => path.join(distPath, f))
-            .sort((a, b) => {
-                return fs.statSync(b).mtime.getTime() - fs.statSync(a).mtime.getTime();
-            });
-        
-        if (luaFiles.length === 0) {
-            vscode.window.showInformationMessage('No cartridge found. Build project first.');
-            return;
-        }
-        
-        const cartridgePath = luaFiles[0];
         const needsSync = await this.syncService.checkSyncNeeded(cartridgePath, this.projectRoot);
         
         if (needsSync) {
@@ -554,6 +540,12 @@ export class ProjectManager {
         // Type assertion: projectRoot and currentProject are guaranteed to be set if we reach this point
         const projectRoot = this.projectRoot as string;
         const currentProject = this.currentProject as TIC80ProjectConfig;
+        const cartridgePath = await this.findLatestCartridgePath(projectRoot);
+        const preBuildAction = await this.resolvePreBuildAction(projectRoot, cartridgePath);
+
+        if (preBuildAction === 'cancel') {
+            return null;
+        }
         
         // Show progress notification
         const progressOptions = {
@@ -564,6 +556,24 @@ export class ProjectManager {
         
         return await vscode.window.withProgress(progressOptions, async (progress) => {
             try {
+                if (preBuildAction === 'sync' && cartridgePath) {
+                    progress.report({ message: "Synchronizing resources..." });
+                    const comparison = await this.syncService.getResourceComparison(cartridgePath, projectRoot);
+                    if (!comparison) {
+                        vscode.window.showErrorMessage('Failed to compare cartridge resources before build.');
+                        return null;
+                    }
+                    await this.syncService.applyResourceChanges(comparison, projectRoot);
+                    vscode.window.showInformationMessage('Resource changes synchronized successfully');
+                } else if (preBuildAction === 'backup' && cartridgePath) {
+                    progress.report({ message: "Creating backup..." });
+                    const backupPath = await this.backupCurrentCartridge(cartridgePath, projectRoot);
+                    if (!backupPath) {
+                        return null;
+                    }
+                    vscode.window.showInformationMessage(`Backup created: ${path.basename(backupPath)}`);
+                }
+
                 progress.report({ message: "Validating project configuration..." });
                 
                 // Validate code files exist
@@ -578,14 +588,14 @@ export class ProjectManager {
                 progress.report({ message: "Building cartridge..." });
                 
                 // Build the cartridge
-                const cartridgePath = await this.cartridgeBuilder.buildCartridge(
+                const builtCartridgePath = await this.cartridgeBuilder.buildCartridge(
                     projectRoot,
                     currentProject
                 );
-                
+
                 progress.report({ message: "Build complete!" });
                 
-                return cartridgePath;
+                return builtCartridgePath;
                 
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -670,6 +680,95 @@ export class ProjectManager {
         }
         
         return missingFiles;
+    }
+
+    /**
+     * Find the latest built cartridge in the dist folder
+     */
+    private async findLatestCartridgePath(projectRoot: string): Promise<string | null> {
+        const distPath = path.join(projectRoot, 'dist');
+        if (!fs.existsSync(distPath)) {
+            return null;
+        }
+
+        const files = await fs.promises.readdir(distPath);
+        const luaFiles = files
+            .filter(f => f.endsWith('.lua'))
+            .map(f => path.join(distPath, f))
+            .sort((a, b) => {
+                return fs.statSync(b).mtime.getTime() - fs.statSync(a).mtime.getTime();
+            });
+
+        return luaFiles.length > 0 ? luaFiles[0] : null;
+    }
+
+    /**
+     * Resolve the action to take before building when cartridge resources are out of sync
+     */
+    private async resolvePreBuildAction(
+        projectRoot: string,
+        cartridgePath: string | null
+    ): Promise<'sync' | 'backup' | 'ignore' | 'cancel'> {
+        if (!cartridgePath) {
+            return 'ignore';
+        }
+
+        const comparison = await this.syncService.getResourceComparison(cartridgePath, projectRoot);
+        if (!comparison) {
+            vscode.window.showErrorMessage('Failed to inspect cartridge changes before build.');
+            return 'cancel';
+        }
+
+        if (!comparison.changed) {
+            return 'ignore';
+        }
+
+        const choice = await vscode.window.showWarningMessage(
+            'Unsynchronized changes found in the cartridge. What would you like to do before building?',
+            { modal: true },
+            'Sync changes and build',
+            'Backup the cartridge and build',
+            'Ignore and build',
+            'Cancel'
+        );
+
+        switch (choice) {
+            case 'Sync changes and build':
+                return 'sync';
+            case 'Backup the cartridge and build':
+                return 'backup';
+            case 'Ignore and build':
+                return 'ignore';
+            default:
+                return 'cancel';
+        }
+    }
+
+    /**
+     * Copy the current cartridge to the backup folder before rebuilding it
+     */
+    private async backupCurrentCartridge(cartridgePath: string, projectRoot: string): Promise<string | null> {
+        try {
+            const backupDir = path.join(projectRoot, ProjectManager.BACKUP_DIR);
+            await fs.promises.mkdir(backupDir, { recursive: true });
+
+            const timestamp = new Date()
+                .toISOString()
+                .replace(/[:.]/g, '-')
+                .replace('T', '_')
+                .replace('Z', '');
+            const ext = path.extname(cartridgePath) || '.lua';
+            const baseName = path.basename(cartridgePath, ext);
+            const backupName = `${baseName}_${timestamp}${ext}`;
+            const backupPath = path.join(backupDir, backupName);
+
+            await fs.promises.copyFile(cartridgePath, backupPath);
+            return backupPath;
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            vscode.window.showErrorMessage(`Failed to create cartridge backup: ${message}`);
+            return null;
+        }
     }
     
     /**

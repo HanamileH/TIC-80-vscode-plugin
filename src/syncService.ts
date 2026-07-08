@@ -391,12 +391,27 @@ export class SyncService {
      */
     async checkSyncNeeded(cartridgePath: string, projectPath: string): Promise<boolean> {
         try {
-            const cartridgeResources = await this.parser.parseCartridge(cartridgePath);
-            const projectResources = await this.resourceManager.scanResources(projectPath);
-            const comparison = this.parser.compareResources(projectResources, cartridgeResources);
-            return comparison.changed;
+            const comparison = await this.getResourceComparison(cartridgePath, projectPath);
+            return comparison ? comparison.changed : false;
         } catch {
             return false;
+        }
+    }
+
+    /**
+     * Get detailed comparison between cartridge resources and project resources
+     */
+    async getResourceComparison(
+        cartridgePath: string,
+        projectPath: string
+    ): Promise<ResourceComparisonResult | null> {
+        try {
+            const cartridgeResources = await this.parser.parseCartridge(cartridgePath);
+            const projectResources = await this.resourceManager.scanResources(projectPath);
+            return this.parser.compareResources(projectResources, cartridgeResources);
+        } catch (error) {
+            console.error('Failed to compare cartridge resources:', error);
+            return null;
         }
     }
 }
